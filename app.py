@@ -2,7 +2,8 @@
 
 import streamlit as st
 import directory_page 
-import detail_page # <-- NEW: Import the detail page module
+import detail_page 
+import calendar_page # <-- NEW: Import the calendar page module
 
 # --- Basic App Configuration ---
 st.set_page_config(
@@ -33,9 +34,8 @@ if st.session_state.current_page == "home":
 elif st.session_state.current_page == "directory":
     directory_page.show_directory() 
     
-elif st.session_state.current_page == "detail": # <-- NEW: Route to the detail page
+elif st.session_state.current_page == "detail":
     detail_page.show_group_detail()
     
 elif st.session_state.current_page == "calendar":
-    st.title("📅 Master Calendar (Coming in Sprint 3)")
-    st.warning("This page is under construction.")
+    calendar_page.show_calendar() # <-- NEW: Route to the calendar page

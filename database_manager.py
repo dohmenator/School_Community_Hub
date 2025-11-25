@@ -141,6 +141,68 @@ class DatabaseManager:
             return False
 
     # ====================================================================
+    # EVENT (CRUD) FUNCTIONS - NEW
+    # ====================================================================
+
+    def add_event(self, event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Inserts a new event record and returns the created record."""
+        try:
+            # Note: Supabase handles created_at, id automatically.
+            response = self.supabase.table("events").insert(event_data).execute()
+            if response.data:
+                return response.data[0]
+            return None
+        except Exception as e:
+            print(f"Error adding event: {e}")
+            return None
+
+    def get_all_events(self, include_private: bool = False) -> List[Dict[str, Any]]:
+        """
+        Retrieves all public events, optionally including private ones.
+        Also performs a join to get the name of the hosting organization.
+        """
+        query = self.supabase.table("events").select("*, organizations(name, category)")
+        
+        if not include_private:
+            query = query.eq("is_public", True)
+            
+        # Order by start_time to show upcoming events first
+        response = query.order("start_time", desc=False).execute()
+        
+        # We need to flatten the data structure slightly for easier use in Streamlit
+        if response.data:
+            flattened_data = []
+            for event in response.data:
+                # Pull the organization name and category up to the top level
+                if event.get('organizations'):
+                    event['organization_name'] = event['organizations']['name']
+                    event['organization_category'] = event['organizations']['category']
+                # Remove the nested organization data
+                event.pop('organizations', None)
+                flattened_data.append(event)
+            return flattened_data
+        
+        return []
+
+    def get_events_for_organization(self, org_id: str) -> List[Dict[str, Any]]:
+        """Retrieves all events hosted by a specific organization."""
+        response = (self.supabase.table("events")
+                    .select("*")
+                    .eq("organization_id", org_id)
+                    .order("start_time", desc=False)
+                    .execute())
+        return response.data if response.data else []
+        
+    def delete_event(self, event_id: str) -> bool:
+        """Deletes an event record by ID."""
+        try:
+            self.supabase.table("events").delete().eq("id", event_id).execute()
+            return True
+        except Exception as e:
+            print(f"Error deleting event: {e}")
+            return False
+    
+    # ====================================================================
     # MEMBERSHIP (CRUD) FUNCTIONS
     # ====================================================================
 
