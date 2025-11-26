@@ -22,7 +22,12 @@ class DatabaseManager:
         if not url or not key:
             raise ValueError("Supabase URL and Key must be provided or loaded from the .env file.")
             
-        self.supabase: Client = create_client(url, key)
+        # --- NEW, MORE EXPLICIT CLIENT CREATION FIX ---
+        self.supabase: Client = create_client(
+            supabase_url=url, 
+            supabase_key=key
+        )
+        # ----------------------------------------------
         print("DatabaseManager initialized.")
 
     # ====================================================================
@@ -153,7 +158,16 @@ class DatabaseManager:
                 return response.data[0]
             return None
         except Exception as e:
-            print(f"Error adding event: {e}")
+            # --- ENHANCED DEBUGGING HERE ---
+            print(f"Error adding event: {e}") 
+            # If the exception `e` itself contains a response, print it
+            if hasattr(e, 'message'): # For Supabase HTTP errors
+                print(f"Supabase Error Message: {e.message}")
+            if hasattr(e, 'details'): # For Supabase HTTP errors
+                print(f"Supabase Error Details: {e.details}")
+            if hasattr(e, 'code'): # For Supabase HTTP errors
+                print(f"Supabase Error Code: {e.code}")
+            # -------------------------------
             return None
 
     def get_all_events(self, include_private: bool = False) -> List[Dict[str, Any]]:
