@@ -7,6 +7,7 @@ import calendar_page
 import auth_manager
 from datetime import datetime
 import profile_page
+import admin_panel_page
 
 # --- Initialize AuthManager ---
 auth = auth_manager.AuthManager()
@@ -24,6 +25,7 @@ st.sidebar.markdown("---")
 
 # Conditional navigation based on login status
 if auth.is_logged_in():
+    user_role = auth.get_user_role() # Get user role here
     st.sidebar.write(f"Welcome, {auth.get_current_user().get('full_name', 'User')}!")
     if st.sidebar.button("Home"):
         st.session_state.current_page = "home"
@@ -33,6 +35,11 @@ if auth.is_logged_in():
         st.session_state.current_page = "calendar" 
     if st.sidebar.button("My Profile"):
         st.session_state.current_page = "profile"
+    # Show Admin Panel button ONLY if user is 'admin'
+    if user_role == 'admin': # <-- RBAC for Admin Panel
+        if st.sidebar.button("⚙️ Admin Panel"):
+            st.session_state.current_page = "admin_panel"
+    
     st.sidebar.markdown("---")
     if st.sidebar.button("Logout", type="secondary"):
         auth.sign_out()
@@ -109,6 +116,9 @@ elif st.session_state.current_page == "signup":
 
 elif st.session_state.current_page == "profile":
     profile_page.show_profile_page()
+
+elif st.session_state.current_page == "admin_panel": # <-- NEW ROUTE
+    admin_panel_page.show_admin_panel_page()
 
 else:
     st.error("Page not found.")

@@ -1,15 +1,19 @@
-# detail_page.py
+# detail_page.py (Updated for Membership Management and Auth)
 
 import streamlit as st
-# Imports the DatabaseManager from your new separate file
 from database_manager import DatabaseManager
+from auth_manager import AuthManager # <-- NEW IMPORT
 from typing import Optional, Dict, Any, List
 import pandas as pd
+
+# --- Initialize AuthManager and DatabaseManager globally or pass them ---
+# For simplicity, we'll initialize them inside the function as they are lightweight
+# or pass them around if performance became an issue for many instances.
 
 @st.cache_data(show_spinner="Fetching club details...")
 def get_group_data(org_id: str):
     """Fetches the organization and its full roster for the detail page."""
-    db_manager = DatabaseManager()
+    db_manager = DatabaseManager() # Initialize here for cache scope
     
     # 1. Fetch Organization Data (Header/About Section)
     org_data = db_manager.get_organization_by_id(org_id)
@@ -21,13 +25,16 @@ def get_group_data(org_id: str):
     return org_data, roster_data
 
 def show_group_detail():
-    """Implements the Group Detail Page wireframe."""
+    """Implements the Group Detail Page wireframe with membership management."""
     
+    db_manager = DatabaseManager() # Initialize DatabaseManager
+    auth = AuthManager() # Initialize AuthManager
+
     # Retrieve the ID of the organization selected from the directory page
     org_id = st.session_state.get('selected_org_id')
 
     if not org_id:
-        st.error("Error: No organization selected.")
+        st.error("Error: No organization selected. Please go back to the Clubs Directory.")
         st.session_state.current_page = "directory"
         st.rerun()
         return
@@ -52,7 +59,11 @@ def show_group_detail():
 
     # Placeholder for future "Edit" button
     with col_edit:
-        st.button("⚙️ Edit Page", key="edit_btn", disabled=True, help="Requires user authentication (Sprint 4)")
+        # Show edit button only to authorized users
+        user_role = auth.get_user_role()
+        is_admin_or_leader = user_role in ['admin', 'faculty', 'club_leader']
+        st.button("⚙️ Edit Page", key="edit_btn", disabled=not is_admin_or_leader, 
+                  help="Only Club Leaders, Faculty, or Admins can edit this page.")
     
     st.markdown("---")
 
@@ -75,24 +86,60 @@ def show_group_detail():
     st.markdown("---")
 
     # ====================================================================
-    # 3. ROSTER SECTION (MEMBERSHIP LOGIC)
+    # 3. MEMBERSHIP MANAGEMENT (JOIN/LEAVE BUTTONS)
+    # ====================================================================
+    st.subheader("Membership")
+
+    if auth.is_logged_in():
+        current_user = auth.get_current_user()
+        user_id = current_user['id']
+        
+        # Check user's membership status for this specific organization
+        membership_status = db_manager.get_user_org_membership_status(user_id, org_id)
+
+        col1_member_status, col2_member_action = st.columns(2)
+
+        if membership_status:
+            col1_member_status.success(f"You are a member ({membership_status['role'].title()}).")
+            if col2_member_action.button("Leave Organization", type="secondary", key=f"leave_org_{org_id}"):
+                if db_manager.leave_organization(user_id, org_id):
+                    st.success("You have left the organization.")
+                    st.cache_data.clear() # Clear cache to refresh roster and membership status
+                    st.rerun()
+                else:
+                    st.error("Failed to leave organization. Please try again.") 
+        else:
+            col1_member_status.info("You are not currently a member.")
+            if col2_member_action.button("Join Organization", type="primary", key=f"join_org_{org_id}"):
+                if db_manager.join_organization(user_id, org_id):
+                    st.success("You have joined the organization as a member.")
+                    st.cache_data.clear() # Clear cache to refresh roster and membership status
+                    st.rerun()
+                else:
+                    st.error("Failed to join organization. Please try again.") 
+    else:
+        st.info("Log in to join or manage your membership in this organization.")
+
+    st.markdown("---")
+
+    # ====================================================================
+    # 4. ROSTER SECTION (DISPLAY MEMBERS)
     # ====================================================================
     st.subheader("Club Leadership & Roster")
     
+    # Use the fresh roster_raw data
     if roster_raw:
-        # Reformat the roster data for display
+        # Reformat the roster data for display - NOW USING FLATTENED DATA
         roster_formatted = []
         for item in roster_raw:
-            # The user details are nested inside the 'users' key due to the Supabase join
-            user = item.get('users', {})
+            # Direct access to the flattened keys
             roster_formatted.append({
-                "Role": item.get('role', 'Member').title(), 
-                "Name": user.get('full_name', 'Unknown User'),
-                "Email": user.get('email', 'N/A'),
-                "Status": f"Class of {user.get('grad_year')}" if user.get('grad_year') else user.get('role', 'N/A').title()
+                "Role": item.get('membership_role', 'Member').title(), # Access 'membership_role'
+                "Name": item.get('full_name', 'Unknown User'),         # Access 'full_name' directly
+                "Email": item.get('email', 'N/A'),                     # Access 'email' directly
+                "Status": f"Class of {item.get('grad_year')}" if item.get('grad_year') else item.get('membership_role', 'N/A').title()
             })
 
-        # Convert to Pandas DataFrame for nice display
         roster_df = pd.DataFrame(roster_formatted)
         
         # Display the roster table
@@ -108,14 +155,22 @@ def show_group_detail():
         st.info("The roster is currently empty.")
 
     # ====================================================================
-    # 4. ANNOUNCEMENTS AND EVENTS (Future Sprint)
+    # 5. ANNOUNCEMENTS AND EVENTS (Future Sprint)
     # ====================================================================
     st.markdown("---")
     st.subheader("Upcoming Events & Announcements (Sprint 3)")
     st.warning("Event and announcement feeds are scheduled for the next development sprint.")
     
     # Button to return to the directory
-    if st.button("Back to Directory"):
+    if st.button("⬅️ Back to Directory"): # Added an arrow for consistency
         st.session_state.current_page = "directory"
         st.session_state.selected_org_id = None # Clear the selection
         st.rerun()
+
+    # Leader Tools Section (moved to bottom for clarity)
+    user_role_global = auth.get_user_role()
+    is_leader_or_admin = user_role_global in ['admin', 'faculty', 'club_leader']
+    if is_leader_or_admin:
+        st.markdown("---")
+        st.subheader("Leader Tools")
+        st.button("Manage Members (Coming Soon)", disabled=True)

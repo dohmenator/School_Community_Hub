@@ -1,4 +1,4 @@
-# profile_page.py
+# profile_page.py (Corrected for harmonized database_manager.py)
 
 import streamlit as st
 from auth_manager import AuthManager
@@ -38,17 +38,30 @@ def show_profile_page():
     else:
         # Use Streamlit's expander for each organization
         for membership in user_memberships:
-            org_data = membership.get('organizations', {}) # Get the nested organization data
-            role_in_org = membership.get('role', 'Member')
+            # Access flattened data directly from the membership dictionary
+            org_id = membership.get('org_id')
+            org_name = membership.get('org_name', 'Unknown Organization')
+            org_category = membership.get('org_category', 'N/A')
+            org_description = membership.get('org_description', 'No description provided.')
+            role_in_org = membership.get('membership_role', 'Member')
 
-            with st.expander(f"**{org_data.get('name', 'Unknown Organization')}** (Your Role: {role_in_org.title()})"):
-                st.write(f"**Category:** {org_data.get('category', 'N/A')}")
-                st.write(f"**Description:** {org_data.get('description', 'No description provided.')}")
-                # Future: Maybe a button to view org detail page, or leave org
-                if st.button(f"View {org_data.get('name', 'Organization')} Page", key=f"view_org_{org_data.get('id')}"):
-                    st.session_state.current_page = "detail"
-                    st.session_state.selected_org_id = org_data.get('id')
-                    st.rerun()
+            # Ensure a unique key, even if org_id is somehow None (though it shouldn't be with proper data)
+            # We'll use a combination of user_id and org_id for absolute uniqueness
+            unique_key_suffix = f"{current_user['id']}_{org_id}" if org_id else f"{current_user['id']}_{org_name}_{role_in_org}_fallback"
+
+            with st.expander(f"**{org_name}** (Your Role: {role_in_org.title()})"):
+                st.write(f"**Category:** {org_category}")
+                st.write(f"**Description:** {org_description}")
+                
+                # Only show the button if we have a valid org_id to link to
+                if org_id:
+                    if st.button(f"View {org_name} Page", key=f"view_org_page_{unique_key_suffix}"):
+                        st.session_state.current_page = "detail"
+                        st.session_state.selected_org_id = org_id
+                        st.rerun()
+                else:
+                    st.warning("Could not retrieve organization details for this membership.")
+
 
     # Placeholder for future functionality (e.g., Edit Profile button)
     st.markdown("---")

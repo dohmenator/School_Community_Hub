@@ -31,7 +31,7 @@ def show_calendar():
     # 2. Button and Form Logic (Conditional Display)
     # Check if user is logged in AND has a role that can add events
     user_role = auth.get_user_role() # Get current user's role
-    can_add_event = user_role in ['admin', 'faculty', 'club_leader'] # Define roles t
+    can_add_event = user_role in ['admin', 'faculty', 'club_leader', 'teacher'] # Define roles t
     
     # If the form state is active, show the form and the 'Back' button
     if st.session_state.show_event_form:

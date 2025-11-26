@@ -1,13 +1,15 @@
+# database_manager.py (COMPREHENSIVE HARMONIZED VERSION)
+
 from dotenv import load_dotenv
 import os
 from supabase import create_client, Client
 from typing import List, Dict, Any, Optional
+from datetime import datetime # Still needed for event logic if dates are manipulated here
 
 # Load environment variables from the .env file
-load_dotenv() 
+load_dotenv()
 
 # --- Configuration: Loaded from the .env file ---
-# These variables must be set in your local .env file
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 # ------------------------------------------------
@@ -18,88 +20,83 @@ class DatabaseManager:
     using the HTTPS REST API.
     """
     def __init__(self, url: str = SUPABASE_URL, key: str = SUPABASE_KEY):
-        # Ensure keys are available before creating the client
         if not url or not key:
             raise ValueError("Supabase URL and Key must be provided or loaded from the .env file.")
             
-        # --- NEW, MORE EXPLICIT CLIENT CREATION FIX ---
-        self.supabase: Client = create_client(
-            supabase_url=url, 
-            supabase_key=key
-        )
-        # ----------------------------------------------
-        print("DatabaseManager initialized.")
+        self.supabase: Client = create_client(supabase_url=url, supabase_key=key)
+        # print("DatabaseManager initialized.") # Only for debugging, can remove later
 
     # ====================================================================
-    # USER (CRUD) FUNCTIONS
+    # USER PROFILE FUNCTIONS (Mapping to public.users table)
+    # = These functions are used for managing user-specific data and roles.
     # ====================================================================
 
-    def add_user(self, user_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Inserts a new user record and returns the created record."""
+    def get_user_profile(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Fetches a user's profile from the public.users table by user_id."""
         try:
-            response = self.supabase.table("users").insert(user_data).execute()
-            if response.data:
-                return response.data[0]
-            return None
-        except Exception as e:
-            print(f"Error adding user: {e}")
-            return None
-
-    def get_all_users(self) -> List[Dict[str, Any]]:
-        """Retrieves all users from the database."""
-        response = self.supabase.table("users").select("*").execute()
-        return response.data if response.data else []
-
-    def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
-        """Retrieves a single user by their unique email address."""
-        try:
-            response = (self.supabase.table("users")
-                        .select("*")
-                        .eq("email", email)
-                        .single()
-                        .execute())
+            response = self.supabase.table("users").select("*").eq("id", user_id).single().execute()
             return response.data
         except Exception as e:
-             # Supabase client often raises an error if single() returns 0 rows
-             return None 
+            # print(f"Error fetching user profile for {user_id}: {e}") # Debugging
+            return None
 
-    def update_user_role(self, user_id: str, new_role: str) -> Optional[Dict[str, Any]]:
-        """Updates the role for a specific user ID."""
+    def create_user_profile(self, user_id: str, email: str, full_name: str, grad_year: int, role: str) -> bool:
+        """Creates a new user profile in the public.users table."""
+        try:
+            # Check if profile already exists to prevent duplicates during concurrent signups
+            existing_profile = self.get_user_profile(user_id)
+            if existing_profile:
+                # print(f"Profile for {email} already exists, skipping creation.") # Debugging
+                return True # Consider it a success if it already exists
+                
+            response = self.supabase.table("users").insert({
+                "id": user_id,
+                "email": email,
+                "full_name": full_name,
+                "grad_year": grad_year,
+                "role": role
+            }).execute()
+            return bool(response.data)
+        except Exception as e:
+            print(f"Error creating user profile for {email}: {e}")
+            return False
+
+    def get_all_users_with_profiles(self) -> List[Dict[str, Any]]:
+        """Fetches all user profiles from the public.users table."""
+        try:
+            response = self.supabase.table("users").select("*").order("full_name").execute()
+            return response.data if response.data else []
+        except Exception as e:
+            print(f"Error fetching all user profiles: {e}")
+            return []
+
+    def update_user_role(self, user_id: str, new_role: str) -> bool:
+        """Updates the role of a specific user in the public.users table."""
         try:
             response = (self.supabase.table("users")
                         .update({"role": new_role})
                         .eq("id", user_id)
                         .execute())
-            if response.data:
-                return response.data[0]
-            return None
+            return bool(response.data) # Return bool for success/failure
         except Exception as e:
-            print(f"Error updating user role: {e}")
-            return None
-            
-    def delete_user(self, user_id: str) -> bool:
-        """Deletes a user record by ID."""
-        try:
-            self.supabase.table("users").delete().eq("id", user_id).execute()
-            return True
-        except Exception as e:
-            print(f"Error deleting user: {e}")
+            print(f"Error updating role for user {user_id}: {e}")
             return False
 
     # ====================================================================
-    # ORGANIZATION (CRUD) FUNCTIONS
+    # ORGANIZATION FUNCTIONS (Mapping to public.organizations table)
     # ====================================================================
 
-    def add_organization(self, org_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Inserts a new organization record."""
+    def get_org_directory(self) -> List[Dict[str, Any]]:
+        """Retrieves all organizations, ordered by name, for the directory page."""
         try:
-            response = self.supabase.table("organizations").insert(org_data).execute()
-            if response.data:
-                return response.data[0]
-            return None
+            response = (self.supabase.table("organizations")
+                        .select("*")
+                        .order("name")
+                        .execute())
+            return response.data if response.data else []
         except Exception as e:
-            print(f"Error adding organization: {e}")
-            return None
+            print(f"Error fetching organization directory: {e}")
+            return []
 
     def get_organization_by_id(self, org_id: str) -> Optional[Dict[str, Any]]:
         """Retrieves a single organization by its ID."""
@@ -111,173 +108,173 @@ class DatabaseManager:
                         .execute())
             return response.data
         except Exception as e:
-             # Supabase client often raises an error if single() returns 0 rows
-             return None
-             
-    def get_org_directory(self) -> List[Dict[str, Any]]:
-        """Retrieves all organizations, ordered by name."""
-        response = (self.supabase.table("organizations")
-                    .select("*")
-                    .order("name") 
-                    .execute())
-        return response.data if response.data else []
-
-    def update_org_description(self, org_id: str, new_description: str) -> Optional[Dict[str, Any]]:
-        """Updates the description for a specific organization ID."""
-        try:
-            response = (self.supabase.table("organizations")
-                        .update({"description": new_description})
-                        .eq("id", org_id)
-                        .execute())
-            if response.data:
-                return response.data[0]
+            # Supabase client often raises an error if single() returns 0 rows
+            # print(f"Error fetching organization {org_id}: {e}") # Debugging
             return None
-        except Exception as e:
-            print(f"Error updating organization description: {e}")
-            return None
-
-    def delete_organization(self, org_id: str) -> bool:
-        """Deletes an organization record by ID."""
-        try:
-            self.supabase.table("organizations").delete().eq("id", org_id).execute()
-            return True
-        except Exception as e:
-            print(f"Error deleting organization: {e}")
-            return False
-
-    # ====================================================================
-    # EVENT (CRUD) FUNCTIONS - NEW
-    # ====================================================================
-
-    def add_event(self, event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Inserts a new event record and returns the created record."""
-        try:
-            # Note: Supabase handles created_at, id automatically.
-            response = self.supabase.table("events").insert(event_data).execute()
-            if response.data:
-                return response.data[0]
-            return None
-        except Exception as e:
-            # --- ENHANCED DEBUGGING HERE ---
-            print(f"Error adding event: {e}") 
-            # If the exception `e` itself contains a response, print it
-            if hasattr(e, 'message'): # For Supabase HTTP errors
-                print(f"Supabase Error Message: {e.message}")
-            if hasattr(e, 'details'): # For Supabase HTTP errors
-                print(f"Supabase Error Details: {e.details}")
-            if hasattr(e, 'code'): # For Supabase HTTP errors
-                print(f"Supabase Error Code: {e.code}")
-            # -------------------------------
-            return None
-
-    def get_all_events(self, include_private: bool = False) -> List[Dict[str, Any]]:
-        """
-        Retrieves all public events, optionally including private ones.
-        Also performs a join to get the name of the hosting organization.
-        """
-        query = self.supabase.table("events").select("*, organizations(name, category)")
-        
-        if not include_private:
-            query = query.eq("is_public", True)
             
-        # Order by start_time to show upcoming events first
-        response = query.order("start_time", desc=False).execute()
-        
-        # We need to flatten the data structure slightly for easier use in Streamlit
-        if response.data:
-            flattened_data = []
-            for event in response.data:
-                # Pull the organization name and category up to the top level
-                if event.get('organizations'):
-                    event['organization_name'] = event['organizations']['name']
-                    event['organization_category'] = event['organizations']['category']
-                # Remove the nested organization data
-                event.pop('organizations', None)
-                flattened_data.append(event)
-            return flattened_data
-        
-        return []
-
-    def get_events_for_organization(self, org_id: str) -> List[Dict[str, Any]]:
-        """Retrieves all events hosted by a specific organization."""
-        response = (self.supabase.table("events")
-                    .select("*")
-                    .eq("organization_id", org_id)
-                    .order("start_time", desc=False)
-                    .execute())
-        return response.data if response.data else []
-        
-    def delete_event(self, event_id: str) -> bool:
-        """Deletes an event record by ID."""
+    def add_organization(self, org_data: Dict[str, Any]) -> bool: # Changed return to bool for consistency
+        """Inserts a new organization record."""
         try:
-            self.supabase.table("events").delete().eq("id", event_id).execute()
-            return True
+            response = self.supabase.table("organizations").insert(org_data).execute()
+            return bool(response.data)
         except Exception as e:
-            print(f"Error deleting event: {e}")
+            print(f"Error adding organization: {e}")
             return False
-    
-    # ====================================================================
-    # MEMBERSHIP (CRUD) FUNCTIONS
-    # ====================================================================
 
-    def add_membership(self, user_id: str, organization_id: str, role: str = 'member') -> Optional[Dict[str, Any]]:
-        """Links a user to an organization with a specific role."""
-        membership_data = {
-            "user_id": user_id,
-            "organization_id": organization_id,
-            "role": role
-        }
-        try:
-            response = self.supabase.table("memberships").insert(membership_data).execute()
-            if response.data:
-                return response.data[0]
-            return None
-        except Exception as e:
-            print(f"❌ Error adding membership: {e}")
-            return None
+    # (Other org functions like update_org_description, delete_organization can stay if you use them)
 
-    def get_memberships_for_org(self, organization_id: str) -> List[Dict[str, Any]]:
-        """
-        Fetches the roster for a given organization.
-        Uses a join/embed query to get the full user details.
-        """
-        response = (self.supabase.table("memberships")
-                    .select("role, users(*)") 
-                    .eq("organization_id", organization_id)
-                    .order("role", desc=True) # Order by role to put leaders first (e.g., president)
-                    .execute())
-        return response.data if response.data else []
+    # ====================================================================
+    # MEMBERSHIP FUNCTIONS (Mapping to public.memberships table)
+    # ====================================================================
 
     def get_orgs_for_user(self, user_id: str) -> List[Dict[str, Any]]:
         """
-        Fetches all organizations a given user belongs to.
-        Uses a join/embed query to get the full organization details.
+        Fetches all organizations a given user belongs to, with organization details.
         """
-        response = (self.supabase.table("memberships")
-                    .select("role, organizations(*)")
-                    .eq("user_id", user_id)
-                    .execute())
-        return response.data if response.data else []
-
-    def update_membership_role(self, membership_id: str, new_role: str) -> Optional[Dict[str, Any]]:
-        """Updates the role for an existing membership record."""
         try:
             response = (self.supabase.table("memberships")
-                        .update({"role": new_role})
-                        .eq("id", membership_id)
+                        .select("role, organizations!inner(id, name, category, description)") # Join to get full org data
+                        .eq("user_id", user_id)
                         .execute())
-            if response.data:
-                return response.data[0]
-            return None
-        except Exception as e:
-            print(f"❌ Error updating membership role: {e}")
-            return None
             
-    def remove_membership(self, membership_id: str) -> bool:
-        """Deletes a membership record by its ID."""
-        try:
-            self.supabase.table("memberships").delete().eq("id", membership_id).execute()
-            return True
+            # Flatten the nested organization data for easier use
+            if response.data:
+                flattened_data = []
+                for membership in response.data:
+                    org_info = membership.get('organizations', {})
+                    if org_info:
+                        flattened_data.append({
+                            'membership_role': membership.get('role'),
+                            'org_id': org_info.get('id'),
+                            'org_name': org_info.get('name'),
+                            'org_category': org_info.get('category'),
+                            'org_description': org_info.get('description')
+                        })
+                return flattened_data
+            return []
         except Exception as e:
-            print(f"❌ Error removing membership: {e}")
+            print(f"Error fetching organizations for user {user_id}: {e}")
+            return []
+
+    def get_memberships_for_org(self, org_id: str) -> List[Dict[str, Any]]:
+        """
+        Fetches the roster for a given organization, including user details.
+        """
+        try:
+            response = (self.supabase.table("memberships")
+                        .select("role, users!inner(id, full_name, email, grad_year)") # Join to get user details
+                        .eq("organization_id", org_id)
+                        .order("role", desc=True) # Order by role to put leaders first
+                        .execute())
+
+            # Flatten the nested user data for easier use
+            if response.data:
+                flattened_data = []
+                for membership in response.data:
+                    user_info = membership.get('users', {})
+                    if user_info:
+                        flattened_data.append({
+                            'membership_role': membership.get('role'),
+                            'user_id': user_info.get('id'),
+                            'full_name': user_info.get('full_name'),
+                            'email': user_info.get('email'),
+                            'grad_year': user_info.get('grad_year')
+                        })
+                return flattened_data
+            return []
+        except Exception as e:
+            print(f"Error fetching memberships for organization {org_id}: {e}")
+            return []
+
+    def get_user_org_membership_status(self, user_id: str, org_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Checks if a user is a member of a specific organization and returns the membership record if found.
+        """
+        try:
+            response = (self.supabase.table("memberships")
+                        .select("*")
+                        .eq("user_id", user_id)
+                        .eq("organization_id", org_id)
+                        .single()
+                        .execute())
+            return response.data
+        except Exception as e:
+            # print(f"Error checking membership status for user {user_id} in org {org_id}: {e}") # Debugging
+            return None # Return None if no record or an error occurs
+
+    def join_organization(self, user_id: str, org_id: str, role: str = "member") -> bool:
+        """Adds a user as a member to an organization."""
+        try:
+            existing_membership = self.get_user_org_membership_status(user_id, org_id)
+            if existing_membership:
+                # print("You are already a member of this organization.") # Debugging
+                return False # Indicate that it was not 'joined' because already a member
+
+            response = (self.supabase.table("memberships")
+                        .insert({"user_id": user_id, "organization_id": org_id, "role": role})
+                        .execute())
+            return bool(response.data)
+        except Exception as e:
+            print(f"Error joining organization {org_id} for user {user_id}: {e}")
             return False
+
+    def leave_organization(self, user_id: str, org_id: str) -> bool:
+        """Removes a user's membership from an organization."""
+        try:
+            response = (self.supabase.table("memberships")
+                        .delete()
+                        .eq("user_id", user_id)
+                        .eq("organization_id", org_id)
+                        .execute())
+            return bool(response.data)
+        except Exception as e:
+            print(f"Error leaving organization {org_id} for user {user_id}: {e}")
+            return False
+            
+    # (Other membership functions like update_membership_role, remove_membership can stay if you use them)
+
+    # ====================================================================
+    # EVENT FUNCTIONS (Mapping to public.events table)
+    # ====================================================================
+
+    def add_event(self, event_data: Dict[str, Any]) -> bool: # Changed return to bool for consistency
+        """Inserts a new event record."""
+        try:
+            response = self.supabase.table("events").insert(event_data).execute()
+            return bool(response.data)
+        except Exception as e:
+            print(f"Error adding event: {e}")
+            return False
+
+    def get_all_events(self, include_private: bool = False) -> List[Dict[str, Any]]:
+        """
+        Retrieves all public events, optionally including private ones,
+        and flattens organization details for Streamlit display.
+        """
+        try:
+            query = self.supabase.table("events").select("*, organizations(name, category)")
+            
+            if not include_private:
+                query = query.eq("is_public", True)
+                
+            response = query.order("start_time", desc=False).execute()
+            
+            # Flatten the data structure slightly for easier use in Streamlit
+            if response.data:
+                flattened_data = []
+                for event in response.data:
+                    # Pull the organization name and category up to the top level
+                    if event.get('organizations'):
+                        event['organization_name'] = event['organizations']['name']
+                        event['organization_category'] = event['organizations']['category']
+                    # Remove the nested organization data (optional, but good for cleanliness)
+                    event.pop('organizations', None)
+                    flattened_data.append(event)
+                return flattened_data
+            
+            return []
+        except Exception as e:
+            print(f"Error fetching all events: {e}")
+            return []
+
+    # (Other event functions like get_events_for_organization, delete_event can stay if you use them)
