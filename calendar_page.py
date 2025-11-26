@@ -5,7 +5,8 @@ import pandas as pd
 from database_manager import DatabaseManager
 from datetime import datetime
 from typing import List, Dict, Any
-import event_form # <-- 1. NEW IMPORT
+import event_form
+from auth_manager import AuthManager
 
 # --- Data Fetching ---
 @st.cache_data(show_spinner="Loading Master Calendar events...")
@@ -20,11 +21,18 @@ def show_calendar():
     """Implements the Master Calendar Page wireframe."""
     st.title("🗓️ Dohmens Master Calendar")
     
+    # Initialize AuthManager to check user role
+    auth = AuthManager()
+
     # 1. State for showing the form
     if 'show_event_form' not in st.session_state:
         st.session_state.show_event_form = False
 
-    # 2. Button and Form Logic
+    # 2. Button and Form Logic (Conditional Display)
+    # Check if user is logged in AND has a role that can add events
+    user_role = auth.get_user_role() # Get current user's role
+    can_add_event = user_role in ['admin', 'faculty', 'club_leader'] # Define roles t
+    
     # If the form state is active, show the form and the 'Back' button
     if st.session_state.show_event_form:
         if st.button("⬅️ Back to Calendar"):
@@ -33,12 +41,14 @@ def show_calendar():
         event_form.show_event_creation_form() # <-- Display the new form
         return # STOP HERE so the calendar list doesn't show with the form
 
-    # 3. Calendar Display Logic (Runs if show_event_form is False)
-    
-    # Button to open the form
-    if st.button("➕ Add New Event"):
-        st.session_state.show_event_form = True
-        st.rerun()
+    # Display "Add New Event" button ONLY if the user has permission
+    if can_add_event:
+        if st.button("➕ Add New Event"):
+            st.session_state.show_event_form = True
+            st.rerun()
+    else:
+        # Optionally, display a disabled button or just hide it
+        st.button("➕ Add New Event", disabled=True, help="You must be a Club Leader, Faculty, or Admin to add events.", key="disabled_add_event_btn")
         
     # Fetch Data
     event_data = get_calendar_events()

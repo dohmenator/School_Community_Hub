@@ -31,7 +31,7 @@ if auth.is_logged_in():
         st.session_state.current_page = "directory"
     if st.sidebar.button("Master Calendar"):
         st.session_state.current_page = "calendar" 
-    if st.sidebar.button("My Profile (Sprint 4)"): # Placeholder for profile page
+    if st.sidebar.button("My Profile"):
         st.session_state.current_page = "profile"
     st.sidebar.markdown("---")
     if st.sidebar.button("Logout", type="secondary"):
@@ -112,3 +112,5 @@ elif st.session_state.current_page == "profile":
 
 else:
     st.error("Page not found.")
+
+
