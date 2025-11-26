@@ -6,6 +6,7 @@ import detail_page
 import calendar_page 
 import auth_manager
 from datetime import datetime
+import profile_page
 
 # --- Initialize AuthManager ---
 auth = auth_manager.AuthManager()
@@ -107,8 +108,7 @@ elif st.session_state.current_page == "signup":
                     st.error(st.session_state['auth_error'])
 
 elif st.session_state.current_page == "profile":
-    st.title("👤 My Profile (Coming Soon!)")
-    st.info("This page will display your personal information and organization memberships.")
+    profile_page.show_profile_page()
 
 else:
     st.error("Page not found.")
