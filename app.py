@@ -39,6 +39,14 @@ if auth.is_logged_in():
     if user_role == 'admin': # <-- RBAC for Admin Panel
         if st.sidebar.button("⚙️ Admin Panel"):
             st.session_state.current_page = "admin_panel"
+
+    # Admin Panel button logic
+    # TEMPORARY DEBUG OVERRIDE: This will show the Admin Panel button if debug_show_admin_button is True,
+    # regardless of role. Set it to False after testing.
+    # if user_role == 'admin' or st.session_state.debug_show_admin_button:
+    #     if st.sidebar.button("⚙️ Admin Panel"):
+    #         st.session_state.current_page = "admin_panel"
+
     
     st.sidebar.markdown("---")
     if st.sidebar.button("Logout", type="secondary"):
@@ -70,6 +78,9 @@ else: # Not logged in
 # Initialize page state
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "home"
+# For debugging Admin Panel visibility
+if 'debug_show_admin_button' not in st.session_state:
+    st.session_state.debug_show_admin_button = False # Set to True for testing, then back to False
 
 # --- Main Content Area ---
 if st.session_state.current_page == "home":

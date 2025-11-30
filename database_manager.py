@@ -277,4 +277,33 @@ class DatabaseManager:
             print(f"Error fetching all events: {e}")
             return []
 
-    # (Other event functions like get_events_for_organization, delete_event can stay if you use them)
+
+    def add_organization(self, org_data: Dict[str, Any]) -> Dict[str, Any] | None:
+        try:
+            response = self.supabase.table("organizations").insert(org_data).execute()
+            return response.data[0] if response.data else None
+        except Exception as e:
+            st.error(f"Error adding organization: {e}")
+            return None
+
+    def update_organization(self, org_id: str, org_data: Dict[str, Any]) -> bool:
+        """Updates an existing organization's details."""
+        try:
+            response = self.supabase.table("organizations").update(org_data).eq("id", org_id).execute()
+            return bool(response.data) # Returns True if data was updated
+        except Exception as e:
+            st.error(f"Error updating organization {org_id}: {e}")
+            return False
+
+    def delete_organization(self, org_id: str) -> bool:
+        """Deletes an organization by its ID."""
+        try:
+            response = self.supabase.table("organizations").delete().eq("id", org_id).execute()
+            # Supabase delete returns data even on successful deletion,
+            # so checking if data is present usually means something was deleted.
+            return bool(response.data) 
+        except Exception as e:
+            st.error(f"Error deleting organization {org_id}: {e}")
+            return False
+
+    
